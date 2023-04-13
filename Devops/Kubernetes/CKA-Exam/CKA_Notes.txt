@@ -619,3 +619,206 @@ spec:
     args:
       - "color"
       - "green"
+
+
+
+ENVIRONMENT VARIABLES
+
+basic pod defination file with environment variables
+
+apiVersion: v1
+kind: Pod
+metadata: 
+  name: <name of the pod>
+spec:
+  containers:
+  - image: <name of the image>
+    name: <name of the container>
+  env:
+    - name: APP_COLOUR
+      value: pink
+
+in the above file we have hardcoded the value of the environment variable. in some cases we have to grab the value from config map keys and secret keys
+
+
+env:
+  - name: APP_COLOUR
+    valueFrom:
+      configMapKeyRef
+
+
+env:
+  - name: APP_COLOUR
+    valueFrom:
+      secretKeyRef
+
+
+CONFIG MAPS
+
+conig maps are used to pass configuration data in the form of key value pairs. when we have n no of env. variables we can store then in a config file and attach this config file to the pod 
+defination file
+
+basic config defination file
+
+apiVersion: v1
+kind: configMap
+metadata: 
+  name: <name of the config map>
+date:
+  APP_COLOR: blue
+  APP_MODE: prod
+
+
+kubectl apply -f <config file name>
+
+
+pod defination file with config map
+
+apiVersion: v1
+kind: Pod
+metadata: 
+  name: <name of the pod>
+spec:
+  containers:
+  - envFrom:
+    - configMapRef:
+        name: webapp-config-map
+    image: kodekloud/webapp-color
+
+
+we can create config maps by using imperative mode
+
+kubectl create configmap <name of the configmap> --from-literal=<key>=<value>
+
+we can add multiple key and values as below
+
+kubectl create configmap <name of the configmap> --from-literal=<key>=<value> \
+--from-literal=<key1>=<value1> \
+--from-literal=<key2>=<value2> 
+
+we can directl create a configmap from the file
+
+kubectl create configmap <name of the config map> --from-file=<path  of the file>
+
+kubectl get configmaps/cm = To list the config maps
+
+kubectl describe configmaps <configname> = To know the full details of the config map
+
+
+
+SECRETS
+
+sometimes we are hardcoding the db username and password in the file that is not good approach. we must pass them via secrets in encoded format
+
+kubectl create secret generic <secret name> --from-literal=<key>=<value> = To create a secret form imperative approach
+
+kubectl create secret generic <secret name> --from-literal=<key>=<value> --from-literal <key1>=<value1> --from-literal <key1>=<value2> = to create multiple key and values at the same time
+
+kubectl create secret generic <secret name> --from-file=<path of the file> = To create a secret from a file
+
+basic secret defination file
+
+apiVersion: v1
+kind: Secret
+metadata: 
+  name: <name of the secret>
+data:
+  DB_Host: mysql
+  DB_USER: Narendra
+  DB_PASSSWD: Narendra
+
+kubectl create -f <file name> = to create a secret from the defination file
+
+in the above file we hard hardcoded the secrets in plain text. that is not safe. we can encode the values by using linux terminal by passing the below command
+
+echo -n "secret name> | bas64 = you will get the encoded value and use this value in the secret defination file
+
+kubectl get secrets = To list the secrets
+
+kubeclt describe secrets = To know more info of the secret, but it hides the values of the secret
+
+kubeclt get secret <secret name> -o yaml = To see the values in the secret file 
+
+we can decode the encoded values mentioned in the secret by using linux terminal pasing the below command
+
+echo -n "encoded value" | base64 --decode
+
+
+Basic pod defination file with secret
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: <name of the pod>
+spec:
+  containers:
+  - name: <name of the cont>
+    image: <name fo the image>
+    envFrom:
+      - secretRef:
+          name: <name of the secret created by the above secret defination file mentiond in metadata>
+
+in the above pod defination file we have injected the whole secret file. Now we will see how to pass a single secret env variable
+
+env:
+  - name: DB_Password
+    valueFrom: 
+      secretKeyRef:
+        name: <name of the secret created>
+        key: DB_Password 
+
+From the above snippet pod will grab the value of DB_Password from the secret file
+
+
+if we want to attach secrets as volumes
+
+volumes:
+  - name: <name of the secret of the volume>
+    secret:
+     	secretName: <name of the secret>
+
+each attribute mentioned in the secret will be created as a volume
+
+ls /opt/<name of the secret>/volumes
+
+check the secretvolumes on google
+
+
+NOTE: secrets can only be encoded not encrypted we can decode that by using the earlier method
+
+secrets are not encrypted in ETCD. how to do that? check below link
+
+https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/
+
+Anyone have access on the namespace to create any objects they can see the secrets
+
+we should create RBAC to control the access 
+
+
+A note about Secrets!
+Remember that secrets encode data in base64 format. Anyone with the base64 encoded secret can easily decode it. As such the secrets can be considered as not very safe.
+
+The concept of safety of the Secrets is a bit confusing in Kubernetes. The kubernetes documentation page and a lot of blogs out there refer to secrets as a "safer option" to store sensitive data. They are safer than storing in plain text as they reduce the risk of accidentally exposing passwords and other sensitive data. In my opinion it's not the secret itself that is safe, it is the practices around it. 
+
+Secrets are not encrypted, so it is not safer in that sense. However, some best practices around using secrets make it safer. As in best practices like:
+
+Not checking-in secret object definition files to source code repositories.
+
+Enabling Encryption at Rest for Secrets so they are stored encrypted in ETCD. 
+
+
+
+Also the way kubernetes handles secrets. Such as:
+
+A secret is only sent to a node if a pod on that node requires it.
+
+Kubelet stores the secret into a tmpfs so that the secret is not written to disk storage.
+
+Once the Pod that depends on the secret is deleted, kubelet will delete its local copy of the secret data as well.
+
+Read about the protections and risks of using secrets here
+
+
+
+Having said that, there are other better ways of handling sensitive data like passwords in Kubernetes, such as using tools like Helm Secrets, HashiCorp Vault. I hope to make a lecture on these in the future.
+
