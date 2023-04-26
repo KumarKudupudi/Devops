@@ -157,7 +157,8 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: <name of the name space>
-  
+  labels:
+    key1: value1
 kubectl create -f <name of the namespace defination file> = To create a namespace from the defination file
 kubectl create namespace <name of the namespace> = To create a namespace from the CLI
 
@@ -822,3 +823,1187 @@ Read about the protections and risks of using secrets here
 
 Having said that, there are other better ways of handling sensitive data like passwords in Kubernetes, such as using tools like Helm Secrets, HashiCorp Vault. I hope to make a lecture on these in the future.
 
+ 	
+
+INIT CONTAINERS
+https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
+
+Kubernetes supports self-healing applications through ReplicaSets and Replication Controllers. The replication controller helps in ensuring that a POD is re-created automatically when the application within the POD crashes. It helps in ensuring enough replicas of the application are running at all times.
+
+Kubernetes provides additional support to check the health of applications running within PODs and take necessary actions through Liveness and Readiness Probes. However these are not required for the CKA exam and as such they are not covered here. These are topics for the Certified Kubernetes Application Developers (CKAD) exam and are covered in the CKAD course.
+
+
+SELF HEALINH APPLICATIONS
+Kubernetes supports self-healing applications through ReplicaSets and Replication Controllers. The replication controller helps in ensuring that a POD is re-created automatically when the application within the POD crashes. It helps in ensuring enough replicas of the application are running at all times.
+
+Kubernetes provides additional support to check the health of applications running within PODs and take necessary actions through Liveness and Readiness Probes. However these are not required for the CKA exam and as such they are not covered here. These are topics for the Certified Kubernetes Application Developers (CKAD) exam and are covered in the CKAD course.
+
+
+OS -UPGARDES
+
+the time it waits to come back the pod to online is called pro eviction time. we can see that time in controll manager pod
+kube-controller-manager --pod-eviction-timeout=5m0s
+
+when we are tying to update any node like os or patch update,  if you know that the pod will be back in 5 mins, then you can do patches and reboot. teh pods running on this nodes 
+will be killed, if the pods are created by replicaset, the deleted pod will be created in another node.
+
+besta way yo do updates is like first drain the node
+
+kubectl drain <node name> = To drain the node, so that the pods running on this node will be moved to another nodes. while updation of the node, no pods will be shceduled on the node.
+after updation of the node, still no pods will be scheduled untill you uncoden the node
+
+kubectl drain <node name> --ignore-daemonsets = To drain the node if any daemon sets are running
+
+kubectl uncordon <node name> = To uncorden the node
+
+kubectl cordon <node name> = To mark the node as unschedulable, means that no pods will be scheduled and the existing pods will not be termincated and moved to other ndoe
+
+
+KUBERNETES-RELEASES
+
+go thorought the documentation 
+
+https://kubernetes.io/docs/concepts/overview/kubernetes-api/
+
+Here is a link to kubernetes documentation if you want to learn more about this topic (You don't need it for the exam though):
+
+https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md
+
+https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api_changes.md
+
+
+CLUSTER UPGRADE PROCESS
+
+kubeadm upgrade plan = It will show you the current version of the master components and availabel update version. kudeadm wont update the kubectl as it is not part of kubeadm.
+
+better practise is to upgrade 1 minor version at a time. ex: your current version is 1.10 available update version is 1.14. We cant directly update from 1.10 to 1.14. we have to update from 1.10 to 1.11 then 1.11 to 1.12 and so on
+
+we have to update kubeadm tool to the version which we want to upgrade to 1 minor version. ex: we have to  update our kubeadm tool first to the version which we want to udpate
+
+apt-get upgrade -y kubeadm=1.12.0-00 = To upgrade the kubeadm tool
+
+kubeadm upgrade apply v1.12.0 = To upgrade our cluster
+
+we can see the output at the kubect get nodes -o wide command. But it will show the old version as the kubelet is registered on these nodes are still the old version  
+
+apt-get upgrade -y kubelet=1.12.0-00 = to upgrade the kubectl
+
+systemctl restart kubelet
+
+we have upgraded the kubelet on master node only. likewise we have to upgrade in the nodes aswell by draining the nodes to move the  workloads to other node
+
+the same process again 
+
+1. kubectl drain <node name> = To move all the workloads to the other node
+2. we have to update kubeadmthe required version = apt-get upgrade kubeadm=1.12.0-00
+2. we have to upgrade our kubelet = apt-get upgrade kubelet=1.12.0-00
+3. kubeadm upgrade node config --kubelet-version v1.12.0
+4. systemctl restart kubelet
+4. kubectl uncordon <node name>
+
+
+CLUSTER UPGRADE
+
+follow the below link to upgrade the controlplane and node
+
+https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/kubeadm-upgrade/
+
+
+BACKUP & RESTORE
+
+kubectl get all --all-namespaces -o yaml > <name of the file to store all the files>
+
+ETCDCTL_API=3 ectdctl \ snapshot save snapshot.db = To backup the etcd and storing in a file called snapshot.db
+
+ETCDCTL_API=3 etcdctl \ snapshot status snapshot.db = To view the etcd backup
+
+service kube-apiserver stop = To stop the kube-apiserver  (NOTE: Prior restore the etcd from a backup file we should stop the kube-apiserver)
+
+ETCDCTL_API=3 etcdctl \ snapshot restore snapshot.db \ --data-dir <path of the saved file> = To restore all the objects from the backup file
+
+systemctl daemon-reload
+
+service etcd restart 
+
+service kube-apiserver start
+
+
+NOTE: We need to mention the below certs and endpoints to the file saved
+
+ETCDCTL_API=3 etcdctl --endpoints=https://[127.0.0.1]:2379 \
+> --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+> --cert=/etc/kubernetes/pki/etcd/server.crt \
+> --key=/etc/kubernetes/pki/etcd/server.key \
+> snapshot save /opt/snapshot-pre-boot.db
+
+
+
+Use the etcdctl snapshot save command. You will have to make use of additional flags to connect to the ETCD server.
+
+--endpoints: Optional Flag, points to the address where ETCD is running (127.0.0.1:2379)
+
+--cacert: Mandatory Flag (Absolute Path to the CA certificate file)
+
+--cert: Mandatory Flag (Absolute Path to the Server certificate file)
+
+--key: Mandatory Flag (Absolute Path to the Key file)
+
+
+
+Working with ETCDCTL
+
+etcdctl is a command line client for etcd.
+
+In all our Kubernetes Hands-on labs, the ETCD key-value database is deployed as a static pod on the master. The version used is v3.
+
+To make use of etcdctl for tasks such as back up and restore, make sure that you set the ETCDCTL_API to 3.
+
+You can do this by exporting the variable ETCDCTL_API prior to using the etcdctl client. This can be done as follows:
+
+export ETCDCTL_API=3
+
+
+On the Master Node:
+
+To see all the options for a specific sub-command, make use of the -h or --help flag.
+
+For example, if you want to take a snapshot of etcd, use:
+
+etcdctl snapshot save -h and keep a note of the mandatory global options.
+
+Since our ETCD database is TLS-Enabled, the following options are mandatory:
+
+--cacert                                                verify certificates of TLS-enabled secure servers using this CA bundle
+
+--cert                                                    identify secure client using this TLS certificate file
+
+--endpoints=[127.0.0.1:2379]          This is the default as ETCD is running on master node and exposed on localhost 2379.
+
+--key                                                      identify secure client using this TLS key file
+
+Similarly use the help option for snapshot restore to see all available options for restoring the backup.
+
+etcdctl snapshot restore -h
+
+For a detailed explanation on how to make use of the etcdctl command line tool and work with the -h flags, check out the solution video for the Backup and Restore Lab.
+
+Note: In this case, we are restoring the snapshot to a different directory but in the same server where we took the backup (the controlplane node) As a result, the only required option for the restore command is the --data-dir.
+
+Next, update the /etc/kubernetes/manifests/etcd.yaml:
+
+We have now restored the etcd snapshot to a new path on the controlplane - /var/lib/etcd-from-backup, so, the only change to be made in the YAML file, is to change the hostPath for the volume called etcd-data from old directory (/var/lib/etcd) to the new directory (/var/lib/etcd-from-backup).
+
+  volumes:
+  - hostPath:
+      path: /var/lib/etcd-from-backup
+      type: DirectoryOrCreate
+    name: etcd-data
+With this change, /var/lib/etcd on the container points to /var/lib/etcd-from-backup on the controlplane (which is what we want).
+
+When this file is updated, the ETCD pod is automatically re-created as this is a static pod placed under the /etc/kubernetes/manifests directory.
+
+Note 1: As the ETCD pod has changed it will automatically restart, and also kube-controller-manager and kube-scheduler. Wait 1-2 to mins for this pods to restart. You can run the command: watch "crictl ps | grep etcd" to see when the ETCD pod is restarted.
+
+Note 2: If the etcd pod is not getting Ready 1/1, then restart it by kubectl delete pod -n kube-system etcd-controlplane and wait 1 minute.
+
+Note 3: This is the simplest way to make sure that ETCD uses the restored data after the ETCD pod is recreated. You don't have to change anything else.
+
+If you do change --data-dir to /var/lib/etcd-from-backup in the ETCD YAML file, make sure that the volumeMounts for etcd-data is updated as well, with the mountPath pointing to /var/lib/etcd-from-backup (THIS COMPLETE STEP IS OPTIONAL AND NEED NOT BE DONE FOR COMPLETING THE RESTORE)
+
+
+IMPPP
+
+kubectl config view = To check the no of cluster in a environment
+
+kubectl config use-context <clustername> = To switch between clusters
+
+
+References
+
+https://kubernetes.io/docs/tasks/administer-cluster/configure-upgrade-etcd/#backing-up-an-etcd-cluster
+
+https://github.com/etcd-io/website/blob/main/content/en/docs/v3.5/op-guide/recovery.md
+
+https://www.youtube.com/watch?v=qRPNuT080Hk
+
+
+Security Primitives
+
+WE have to decide 
+
+who can access the cluster and what they can do
+
+
+AUTHENTICATION
+
+Who can access ?
+
+Files -Username and password
+Files - username and tokens
+certificates
+external authentication providers - LDAP
+service accounts
+
+What they can do?
+
+RBAC Authorization
+ABAC Authorization
+Node Authorization
+Webhook Node
+
+
+AUTHENTICATION to kube-apiserver
+
+Static password file
+static token file
+certificates
+identity services
+
+static password file
+
+In this method we need to create an excel sheet with 3 rows (Password, Username and user id) and the optional is 4 we can assign the user into a group and save the file with .csv extension
+
+this file we need to pass in kube-apiserver service with
+--basic-auth-file=<file name>
+
+If you setup your cluster with kubeadm server then go to manifests file /etc/kubernetes/manifests/kube-apiserver.yml file and pass the below line
+
+--basic-auth-file=<file name>
+
+
+Article on Setting up Basic Authentication
+Setup basic authentication on Kubernetes (Deprecated in 1.19)
+Note: This is not recommended in a production environment. This is only for learning purposes. Also note that this approach is deprecated in Kubernetes version 1.19 and is no longer available in later releases
+
+Follow the below instructions to configure basic authentication in a kubeadm setup.
+
+Create a file with user details locally at /tmp/users/user-details.csv
+
+# User File Contents
+password123,user1,u0001
+password123,user2,u0002
+password123,user3,u0003
+password123,user4,u0004
+password123,user5,u0005
+
+
+Edit the kube-apiserver static pod configured by kubeadm to pass in the user details. The file is located at /etc/kubernetes/manifests/kube-apiserver.yaml
+
+
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kube-apiserver
+  namespace: kube-system
+spec:
+  containers:
+  - command:
+    - kube-apiserver
+      <content-hidden>
+    image: k8s.gcr.io/kube-apiserver-amd64:v1.11.3
+    name: kube-apiserver
+    volumeMounts:
+    - mountPath: /tmp/users
+      name: usr-details
+      readOnly: true
+  volumes:
+  - hostPath:
+      path: /tmp/users
+      type: DirectoryOrCreate
+    name: usr-details
+
+
+Modify the kube-apiserver startup options to include the basic-auth file
+
+
+
+apiVersion: v1
+kind: Pod
+metadata:
+  creationTimestamp: null
+  name: kube-apiserver
+  namespace: kube-system
+spec:
+  containers:
+  - command:
+    - kube-apiserver
+    - --authorization-mode=Node,RBAC
+      <content-hidden>
+    - --basic-auth-file=/tmp/users/user-details.csv
+Create the necessary roles and role bindings for these users:
+
+
+
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: default
+  name: pod-reader
+rules:
+- apiGroups: [""] # "" indicates the core API group
+  resources: ["pods"]
+  verbs: ["get", "watch", "list"]
+ 
+---
+# This role binding allows "jane" to read pods in the "default" namespace.
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: read-pods
+  namespace: default
+subjects:
+- kind: User
+  name: user1 # Name is case sensitive
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role #this must be Role or ClusterRole
+  name: pod-reader # this must match the name of the Role or ClusterRole you wish to bind to
+  apiGroup: rbac.authorization.k8s.io
+Once created, you may authenticate into the kube-api server using the users credentials
+
+curl -v -k https://localhost:6443/api/v1/pods -u "user1:password123"
+
+
+TLS
+
+openssl genrsa -out <key name (bank key)> 1024
+openssl rsa -in <key name> -pubout <name of the pem (mybank.pem)> 
+
+
+CERTIFICATE CREATION
+
+we can use different tools to create certificates. Those are EASYRSA, OPENSSL, CFSSL
+
+Now we will look only OPENSSL to create certificates
+
+
+Steps to create CA Certificate
+
+1. openssl genrsa -out ca.key 2048 = To create a key
+
+2. openssl req -new -key ca.key -subj "/CN=KUBERNETES-CA" -out ca.csr = To create a certificate signing request without sign from the generated key (CN=certificate Name)
+
+3. openssl x509 -req -in ca.csr -signkey ca.key -out ca.cert = To sign on the certificate by using the created key 
+
+
+ADMIN-USER
+
+1. openssl genrsa -out admin.key 2048 = To create an admin key
+
+2. openssl req -new -key admin.key -subj "CN=KUBE-ADMIN/O=system:masters" -out admin.csr = To create a certificate signing request without sign from the generated key. NOTE: O=system:masters is used to create a group to differentiate kube-admin as other users
+
+3. openssl x509 -req -in admin.csr -CA ca.crt -CAkey ca.key -out admin.crt = To sign on the admin cert with the created CA cert to make admin.cert as valid in the cluster
+
+
+KUBE_SCHEDULER
+
+1. openssl genrsa -out scheduler.key 2048 = To create an key
+
+2. openssl req -new -key scheduler.key -subj "CN=KUBE-SCHEDULER" -out scheduler.csr = To create a certificate signing request without sign from the generated key. 
+
+3. openssl x509 -req -in scheduler.csr -CA ca.crt -CAkey ca.key -out scheduler.crt = To sign on the cert with the created CA cert to make as valid in the cluster
+
+
+KUBE_CONTROLLER_MANAGER
+
+1. openssl genrsa -out controller-manager.key 2048 = To create an key
+
+2. openssl req -new -key controller-manager.key -subj "CN=KUBE-CONTROLLER-MANAGER" -out controller-manager.csr = To create a certificate signing request without sign from the generated key. 
+
+3. openssl x509 -req -in controller-manager.csr -CA ca.crt -CAkey ca.key -out controller-manager.crt = To sign on the cert with the created CA cert to make as valid in the cluster
+
+
+KUBE_CONTROLLER_MANAGER
+
+1. openssl genrsa -out controller-manager.key 2048 = To create an key
+
+2. openssl req -new -key controller-manager.key -subj "CN=KUBE-CONTROLLER-MANAGER" -out controller-manager.csr = To create a certificate signing request without sign from the generated key. 
+
+3. openssl x509 -req -in controller-manager.csr -CA ca.crt -CAkey ca.key -out controller-manager.crt = To sign on the cert with the created CA cert to make as valid in the cluster
+
+
+
+KUBE_PROXY
+
+1. openssl genrsa -out kube-proxy.key 2048 = To create an key
+
+2. openssl req -new -key kube-proxy.key -subj "CN=KUBE-PROXY" -out kube-proxy.csr = To create a certificate signing request without sign from the generated key. 
+
+3. openssl x509 -req -in kube-proxy.csr -CA ca.crt -CAkey ca.key -out kube-proxy.crt = To sign on the cert with the created CA cert to make as valid in the cluster
+
+
+
+KUBE_API-SERVER
+
+1. openssl genrsa -out apiserver.key 2048 = To create an key
+
+2. openssl req -new -key apiserver.key -subj "CN=KUBE-PROXY" -out apiserver.csr --config openssl.cnf = To create a certificate signing request without sign from the generated key. 
+
+NOTE:
+Kube-apiserver has alternate names like
+
+kubernetes
+kubernetes.default
+kubernetes.default.svc
+kubernetes.default.svc.cluster.local
+and it has ip address of the host where it is installed or pod ip address where it is running as a pod in the cluster
+
+to pass the above alternate names in the cert, create an openssl.cnf file and specify these names
+
+[req]
+req_extensions = v3_req
+distinguished_name = req_distinguished_name
+[ v3_req ]
+basicConstraints = CA:FALSE
+keyUsage = nonRepudiation,
+subjectAltName = @alt_names
+[alt_names]
+DNS.1 = kubernetes
+DNS.2 = kubernetes.default
+DNS.3 = kubernetes.default.svc
+DNS.4 = kubernetes.default.svc.cluster.local
+IP.1 = <Ip address of the pod>
+IP.2 = <ip appress of the host, where kube-apiserver installed>
+
+3. openssl x509 -req -in apiserver.csr -CA ca.crt -CAkey ca.key -out apiserver.crt = To sign on the cert with the created CA cert to make as valid in the cluster
+
+
+VIEW CERTIFICATE DETAILS
+
+It depends on the cluster how you are created.
+
+If you are created cluster by yourself, the path is /etc/systemd/system/
+
+If the cluster is create by kubeadm, the path is /etc/kubernetes/manifests
+
+In the above two paths, we do have services files of the master components. If you open that you can see the path of the each certs.
+
+openssl x509 -in <path of the certificate> -text -noout = To view the content in the cert
+
+journalctl -u etcd.service -l = To list out the logs if cluster is created from scratch
+
+kubectl lods etcd-master = To lsit out the logs if cluster is created by kubeadm
+
+If kube-apiserver and etcd are went down we cant use kubectl to fetch the logs, in that case we can use docker commands
+
+docker ps -a = To list out the containers
+
+docker logs <cont.id> = To check the logs
+
+https://github.com/mmumshad/kubernetes-the-hard-way/tree/master/tools
+
+
+CERTIFICATES API
+
+till now we have seen only one admin has access the cluster. Now one more admin joined into the group and want access to the cluster. To do that
+
+Create a sshkey for the user with her name
+	
+	openssl genrsa -out jane.key 2048
+
+sends the key for admin approval
+
+	openssl req -new -key jane.key -subj "/CN=jane" -out jane.csr
+
+then admin need to create yaml file to get the jane.crt to be signed by CA
+
+jane-csr.yaml
+
+apiVersion: certificates.k8s.io/v1beta1
+kind: CertificateSigningRequest
+metadata: 
+  name: jane
+spec: 
+  groups:
+  - system: authenticated
+  usages:
+  - digital signature
+  - key encipherment
+  - server auth
+  request:
+    <paste here the cert file> only in encoded format
+     
+     echo -n jane-csr | base64 or
+
+	cat jane-csr | base64 | tr -d "/n"
+
+then admin will receive the review request
+
+	kubectl get csr = To list the certificates to approve
+	
+	kubeclt certificate approve <cert. naem> = To aprove the certificate
+	
+	kubectl certificate deny <cert.name> = To deny the certificate
+	
+	kubectl delete csr <csr name> = To delete the csr request
+
+To view the generated cert by the CA
+	
+	 kubectl get cert <name of the cert (jane)> -o yaml
+
+	decode the certificate as it is in encoded
+
+	echo "cert content" | base64 --decode
+
+finally the can be shared to the new admin
+
+NOTE: all the above is doing by controller manager as it has CSR-APPROVING and CSR-SIGNING in it
+
+
+KUBE-CONFIG
+
+Basically kube-config file consists of 3 sections
+
+Clusters- where we will mention the list of clusters like dev, predev, stg, prod
+
+Users - the list of users has access on the cluster. The user has different privileges on differnet cluster. ex: prod-user, dev-user, admin
+
+Context - marry clusters and users like which user account will be used to access which cluster
+
+ex: prod-user can access all the cluters in cluster section with his priviliges
+
+    dev-user can access all the cluster in cluster section with his privileges
+	
+    like admin aswell. It depends on the user privileges. 
+
+NOTE: We are creating any new users. with existing users and their privileges we are accessing different clusters in the cluster section.
+
+
+Basic kubeconfig file
+
+apiVersion: v1
+kind: Config
+
+clusters:
+- name: <name of the cluster>
+  cluster:
+    certificate-authority: <it requires cert. of the cert. authority i.e ca.cert>
+    server: <server address>
+
+contexts: 
+- name: kube-admin@name of the cluster to link user and cluster
+  context:
+    cluster: <name of the cluster>
+    user: <name of the user, here kube-admin>
+
+users:
+- name: <kube-admin>
+  user:
+    client-certificate: <cert. of the user>
+    client-key: <key of the user>
+
+
+Like the above add the other users and cluster to create contexts
+
+apiVersion: v1
+kind: Config
+current-context: kube-admin@name of the cluster to link user and cluster
+
+clusters:
+- name: <name of the cluster>
+  cluster:
+    certificate-authority: <it requires cert. of the cert. authority i.e ca.cert>
+    server: <server address>
+
+- name: <name of the cluster2>
+  cluster:
+    certificate-authority: <it requires cert. of the cert. authority i.e ca.cert>
+    server: <server address>
+
+- name: <name of the cluster3>
+  cluster:
+    certificate-authority: <it requires cert. of the cert. authority i.e ca.cert>
+    server: <server address>
+
+
+contexts: 
+- name: kube-admin@name of the cluster to link user and cluster
+  context:
+    cluster: <name of the cluster>
+    user: <name of the user, here kube-admin1>
+
+- name: kube-admin2@name of the cluster to link user and cluster
+  context:
+    cluster: <name of the cluster>
+    user: <name of the user, here kube-admin2>
+
+- name: kube-admin3@name of the cluster to link user and cluster
+  context:
+    cluster: <name of the cluster>
+    user: <name of the user, here kube-admin3>
+
+
+users:
+- name: <kube-admin1>
+  user:
+    client-certificate: <cert. of the user>
+    client-key: <key of the user>
+
+- name: <kube-admin2>
+  user:
+    client-certificate: <cert. of the user>
+    client-key: <key of the user>
+
+- name: <kube-admin3>
+  user:
+    client-certificate: <cert. of the user>
+    client-key: <key of the user>
+
+NOTE: Do not create any obeject with this yaml file. Just save it under users/.kube/config
+
+when we have multiple kubeconfig file, save all the kube-config files under the path users/.kube/config
+	
+kubectl config view = to view the current config file
+
+kubectl config view --kubeconfig=<name of the other kube-config file> = To set the other kubeconfig file as current
+
+kubectl config use-context username@clustername = To change the context in the current kubeconfig file
+
+NOTE: Check the changes were made as per the above command
+
+we can delete/unpdate depends on the other variations like kubectl config -h
+
+
+When we have multiple namespace in a cluster, what to do?
+
+apiVersion: v1
+kind: Config
+
+clusters:
+- name: <name of the cluster>
+  cluster:
+    certificate-authority: <it requires cert. of the cert. authority i.e ca.cert (path of the ca.cert)>/better to use credentials like encoded content
+    certificate-authority-data: better to use content in the cert with encoded format 
+(NOTE: either we can only use one in the above two options, better to user second one)
+    server: <server address>
+
+contexts: 
+- name: kube-admin@name of the cluster to link user and cluster
+  context:
+    cluster: <name of the cluster>
+    user: <name of the user, here kube-admin>
+    namespace: <name of the namespace in the cluster>
+
+users:
+- name: <kube-admin>
+  user:
+    client-certificate: <cert. of the user>
+    client-key: <key of the user>
+
+
+
+kubectl config --kubeconfig=my-kube-config use-context research
+
+kubectl config --kubeconfig=my-kube-config current-context = To view the current context
+
+
+api & api's
+
+core group and named group
+
+core group
+
+api's
+
+v1
+
+namespaces
+pods
+events
+rc
+endpoints
+nodes
+bindings
+persistant volume (PV)
+persistant volume claims (PVC)
+configmaps
+secrets 
+services
+
+
+named group
+
+/api's
+
+/apps  --> deployments, replicasets, statefulsets
+/extensions
+/networking.k8s.io --> /v1  --> /networkpolicies
+/storage.k8s.io
+/authentication.k8s.io
+/certificates/k8s.io  -->/v1  --> CertificateSigningRequest
+
+
+curl http://localhost:6443 to view the above in the cluster. Sometimes we cannt access the apis's. Then use the certs 
+
+curl http://localhost:6443 -k \
+--key <admin key / path of the admin key> \
+--cert <admin cert> \
+--cacert <cacert path>
+
+kube proxy is not equal to kubelet proxy
+
+kubeproxy is used to enable connectivity between pods and services accross diff nodes in the cluster
+
+kubectl proxy is an httpd proxy service created by kubectl to access the kubeapi server
+
+
+AUTHORIZATION
+
+node
+ABAC
+RBAC
+webhooks
+AlwaysAllow
+AlwaysDeny
+
+we can add the AlwaysAllow/AlwaysDeny in the kubeapi server yaml file under authorization-mode. we can define multiple by using comma
+
+RBAC= Role Binding Access Control
+
+https://kubernetes.io/docs/reference/access-authn-authz/rbac/
+
+basic defination file fro rbac
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: 
+  name: developer
+rules:
+- apiGroups: [""]
+  resources: ["Pods"]
+  verbs: ["create", "get", "list", delete", "update"]
+  resourceName: ["pod name"] = We can restrict the access to developer by giving pod name in the pod list. say you have 10 pods, you want to give access only on 1 pod, you have to mention 
+					 that pod name only
+- apiGroups: [""]
+  resources: ["configMap"]
+  verbs: ["create"]
+
+then create an object by applying kubectl apply -f <filename>. We have created a role, next step will be to link the user to the role that we created. 
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: 
+  name: devuser-developer-rolebinding
+subjects:
+- kind: User
+  name: dev-user
+  apiGroup: rbac.authorization.k8s.io/v1
+- roleRef:
+  kind: Role
+  name: developer
+  apiGroup: rbac.authorization.k8s.io/v1
+
+then create the role binding by using kubectl create -f file name
+
+kubectl get roles = To list the existing roles
+
+kubectl get rolebindings = To list the created rolebindings
+
+kubectl describe role <name of the role> = To see the more details abt it
+
+kubectl describe rolebinding <name of the rolebinding> = To see the more details abt it
+
+
+kubectl auth can-i create deployments = To check whether you have access to create the deployments
+
+kubectl auth can-i delete nodes = To check whether you have access to delete the nodes
+
+kubectl auth can-i create pods --namespace <name of the namespace> = To check whether the developer can create pods in that name space
+
+kubectl auth can-i create deployments --as dev-user = If admin has created the roles and rolebindings to the dev-user, now we wants to check it configured correctl then he can use this
+command to check 
+
+
+CLUSTER ROLES & CLUSTER ROLE BINDINGS
+
+kubectl api resources --namespaced=true = To see which resources are namespaced
+
+kubectl api resources --namespaced=false = To see which resources are not namespaced (cluster scoped)
+
+
+To provide access to new admin to only nodes
+
+basic cluster role defination file
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: 
+  name: cluster-admin
+rules:
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["create", "get", "list", delete", "update"]
+
+
+basic clusterrolebinding defination file
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: 
+  name: cluster-admin-rolebinding
+subjects:
+- kind: User
+  name: cluster-admin
+  apiGroup: rbac.authorization.k8s.io/v1
+- roleRef:
+  kind: ClusterRole
+  name: cluster-admin	
+  apiGroup: rbac.authorization.k8s.io/v1
+  
+
+
+SERVICE ACCOUNTS
+
+service accounts are used by third party applications like prometheus to pull the logs from K8
+
+kubectl create serviceaccount <service account name> = To create the service account
+
+NOTE: when we create the service account, it will generate token and that token will be stored in secretobject created by itself. This token will be used by the third party application to authenticate
+
+kubectl get serviceaccount = To list the serviceaccounts
+
+kubectl describe serviceaccount <serviceaccount name> = To get the full details and see the token name
+
+kubectl describe secret <secret name in the serviceaccount> = To see the generated token
+
+NOTE: We can't edit service account details in the pod. IF we want so delete the pod and recreate it. by default when we creating any object, it will be used default serviceaccount to mount
+
+basic pod defination file with service account
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: <name of the pod>
+spec:
+  containers:
+  - name: name of the container>
+    image: name of the image
+  serviceAccountName: <name of the service account created>
+
+WE can tell to pod to dont mount any serviceaccount to the pod.
+
+
+basic pod defination file with saying to dont mount any service account
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: <name of the pod>
+spec:
+  containers:
+  - name: name of the container>
+    image: name of the image
+  automountServiceAccountToken: false
+
+
+
+NOTE: when we are creating any namespace, it will create a serviceaccount itself. when we creating any object under the created namespace, it will use that serviceaccount in that namespace 
+
+we can see the location of the token, the path will be /var/run/secrets/kubernetes.io/serviceaccount. To do that go to the pod by using 
+
+kubectl exec -it <pod name> ls /var/run/secrets/kubernetes.io/serviceaccount = To list the files under service account created
+
+kubectl exec -it <pod name> cat /var/run/secrets/kubernetes.io/serviceaccount/token = To list the files under service account created
+
+we can decode the token by using jwt website. NOTE: there will be no expiry date of the token
+
+
+Till now we have seen the options till 1.22 version of K8
+
+
+but from 1.24 version of K8 when we create serviceaccount it will not generate token by itself. we need to create the token by running
+
+kubectl create token <name of the service account> = To create a token and associate to the serviceaccount.
+
+when we creat the token, it will print the content of token and if we decode it jwt wetbsite now it wil have expiry date
+
+
+IMAGE SECURITY
+
+till now we have seen the images are being pulled form the docker hub public repository. what if we want to use the image in our private repository
+
+say example: when we are pulling the image from docker public repo, we are just giving the name of the image with its tag. But it will consider in this pattern
+
+image: nginx
+
+image: docker.io/library/nginx
+
+docker.io = registry
+
+library = user/account
+
+nginx = image
+
+
+Now if we want to use the image from private repo
+
+first we need to login withour docker credentials by using docker login, then we should create a secret. This secret will be used by api to pull the image. To create a secret
+
+kubectl create secret docker-registry <name of the secret> \ 
+--docker-server= <your server name/DNS name> \
+--docker-username= <username> \
+--docker-password= <password> \
+--docker-email=<email>
+
+
+we should mention this details in the pod defination file
+
+apiVersion: v1
+kind: Pod
+metadata: 
+  name: nginx
+spec: 
+  containers:
+  - name: nginx-cont
+    image: private-repository.io/apps/name of the image
+  imagePullSecret:
+  - name: name of the secret from the above secret
+
+
+/usr/share/linux/capability.h  =  To see the list of capabilities of a root user
+
+docker run --cap-add <linux capability> <image name> = To add additional capabilities to the image running in a container
+
+docker run --cap-drop <linux capability> <image name> = To remove the capabilities to the image running in a container
+
+docker run --priviled <image name> = To use all the capabilities to the image running in a container
+
+docker run --user=<userid> ubuntu sleep 3000 = To run the image as a seperate user as the container will be running as a root user by default. to change the user we can add the user id.
+
+NOTE: Root user in the container and the host is not same. The root user in the container doesn't have all the privileges compared with the user in the host
+
+we have seen till now the security at docker level. likewise we can secure in kubernetes also.
+
+
+apiVersion: v1
+kind: Pod
+metadata: <name of the pod>
+spec:
+  containers:
+  - name: <name of the cont>
+    image: <name of the image>
+    command:
+    - "sleep"
+    - "3000"
+    securityContext:
+      runAsUser: <user id>
+      capabilities:
+        add: ["name of the capability1", "name of the capability2"]
+
+
+kubectl exex <pod name> -- whoami = To check on which user the image is running
+
+NETWORK POLICY
+
+Network policy is nothting but to allow incoming and outgoing traffic to the pods.
+
+lets say there were 3 pods running in a cluster called frontend, api and db pod
+
+user will talk to frontend pod with port 80 and frontend will talk to api pod with 5000port and api talks to db pod on 5432 port. By default in K8 cluster all the pods are communicating with each. This has been done by K8 with AllAllow policy.
+
+Now our intention is that the frondend pod should not communicate with db pod. To do that we have to create an object called network policy.
+
+
+basic network policy defination file
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: 
+  name: <name of the network policy>
+spec:
+  podSelector:
+    matchLabels:
+      label: db-pod (in db pod i have mentioned the label as label: db-pod while creatting db pod)
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector: 
+        matchLabels:
+          name: api-pod (in api pod i have mentioned the label as label: api-pod while creating api pod)
+    ports:
+      protocol: TCP
+      port: 5432  (this is the only port that you want to allow from api-pod)
+
+NOTE: All the networking system doesnt support network policy obeject to create.
+
+supported networking systems
+
+kube-router
+calico
+romana
+weave-net
+
+un-supported networking systems
+
+flanne
+
+Make sure to check while installing networking system in the cluster
+
+Lets say you rhave 3 namespaces called dev, stg and prod. The api-pods with the labels mentioned as label: api-pod in all the namespaces will talk to the db pod. But it should not happen. Only the api-pods in the prod namespace should talk to db in prod namespace.
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: 
+  name: <name of the network policy>
+spec:
+  podSelector:
+    matchLabels:
+      label: db-pod (in db pod i have mentioned the label as label: db-pod while creatting db pod)
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector: 
+        matchLabels:
+          name: api-pod (in api pod i have mentioned the label as label: api-pod while creating api pod)
+	namespaceSelector: (NOTE: if you mentioned the namespace as -namespace, It will impact majorly as the pods with the label as api-pod and all the pods in the particular namespace will 				  talk to the db pod) Make sure prior writing the configuration file..
+        matchLabels:
+          key1: value1 (namespace label)
+    ports:
+      protocol: TCP
+      port: 5432  (this is the only port that you want to allow from api-pod)
+
+lets say there is a backup db server, which db wants to access for backup, in that case we can use ipblock rule to allow backup server by using port of it
+
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: 
+  name: <name of the network policy>
+spec:
+  podSelector:
+    matchLabels:
+      label: db-pod (in db pod i have mentioned the label as label: db-pod while creatting db pod)
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector: 
+        matchLabels:
+          name: api-pod (in api pod i have mentioned the label as label: api-pod while creating api pod)
+    -	namespaceSelector: (NOTE: if you mentioned the namespace as -namespace, It will impact majorly as the pods with the label as api-pod and all the pods in the particular namespace will 				  talk to the db pod) Make sure prior writing the configuration file..
+        matchLabels:
+          key1: value1 (namespace label)
+    - ipBlock:
+        cidr: 192.168.3.6/16 (ip address of backup server)
+  
+    ports:
+      protocol: TCP
+      port: 5432  (this is the only port that you want to allow from api-pod)
+
+
+Now we want to send the db pod backup to the db server. TO do that we have to install agent in db pod to send the data. There we wil use egress rule as we are sending data to external backup server
+
+NOTE: We can create one network policy for ingress and egress aswell
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: <name of the network policy>
+spec:
+  podSelector:
+    matchLabels:
+      label: db-pod
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          name: api-pod
+    ports:
+    - protocol: TCP
+      port: 5000
+   egress:
+   - to:
+     - ipBlock:
+        cidr: <ip address of the external backup server>
+     ports:
+     - protocol: TCP
+       port: 80
+
+kubectl get networkpolicy (netpol) = To list the networkpolicies in the cluster
+
+kubectl describe networkpolicy <policy name> = to see the details about policy
+
+
+Kubectx and Kubens – Command line Utilities
+Through out the course, you have had to work on several different namespaces in the practice lab environments. In some labs, you also had to switch between several contexts.
+
+
+
+While this is excellent for hands-on practice, in a real “live” kubernetes cluster implemented for production, there could be a possibility of often switching between a large number of namespaces and clusters.
+
+
+
+This can quickly become and confusing and overwhelming task if you had to rely on kubectl alone.
+
+
+
+This is where command line tools such as kubectx and kubens come in to picture.
+
+
+
+Reference: https://github.com/ahmetb/kubectx
+
+
+
+Kubectx:
+
+With this tool, you don't have to make use of lengthy “kubectl config” commands to switch between contexts. This tool is particularly useful to switch context between clusters in a multi-cluster environment.
+
+
+
+Installation:
+
+sudo git clone https://github.com/ahmetb/kubectx /opt/kubectx
+sudo ln -s /opt/kubectx/kubectx /usr/local/bin/kubectx
+
+
+Syntax:
+
+To list all contexts:
+
+kubectx
+
+
+
+To switch to a new context:
+
+kubectx <context_name>
+
+To switch back to previous context:
+
+kubectx -
+
+To see current context:
+
+kubectx -c
+
+Kubens:
+
+This tool allows users to switch between namespaces quickly with a simple command.
+
+Installation:
+
+sudo git clone https://github.com/ahmetb/kubectx /opt/kubectx
+sudo ln -s /opt/kubectx/kubens /usr/local/bin/kubens
+
+
+Syntax:
+
+To switch to a new namespace:
+
+kubens <new_namespace>
+
+
+
+To switch back to previous namespace:
+
+kubens -
+  
+ 
