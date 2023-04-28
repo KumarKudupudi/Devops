@@ -2007,3 +2007,277 @@ To switch back to previous namespace:
 kubens -
   
  
+STORAGE
+
+Docker storage
+
+Docker builds the images in layers. The layers in the image while building are read only layers and each is dependent on previous layer. But while running running the image into container
+the docker will create a layer that is readable and writable.
+
+VOlumes
+
+there were two types of volumes in docker that is bind mount and volume mount
+
+Volume mount will mount the volume from the volumes directory which will be created while creating the volume by running docker volume create data. Here data is the name of the volume.
+when we created this volume, automatically a volumes layer will be created at  /var/lib/docker in docker host
+
+Bind mount will mount the external volume anywhere from the host
+
+
+docker run \
+  --mount type=bind,source=/data/mysql,target=/var/lib/mysql sql(image name)
+
+storage drivers are responsible for all the above. there were different kinds of storage drivers
+
+AUFS
+ZFS
+BTRFS
+Device Mapper
+Overlay
+Overlay2
+
+Depending on the underlying os of the image these storage drivers will be supported. Docker will choose the best storage drivers depends on the base OS
+
+VOlumes are not handled by storage drivers It handled by the volume driver plugins. The default one is local. It helps to create a volume on the docker host and store its data under
+/var/lib/docker/volumes directory
+
+some of the docker volume plugins are
+
+Azure file storage
+convoy
+Digitalocean block storage
+flocker
+gce-docker
+gluster fs
+NEtapp
+rexray - AWS EBS
+portworx
+vmsphere vmware storage
+
+docker run -it \
+  --name mysql \
+  --volume-driver rexray/ebs \
+  --mount src=ebs, target=/var/lib/mysql \
+  mysql
+ 
+To create a container and attached the volume from AWS cloud. when container exists the data will be stored in the aws cloud.
+
+as we have seen earlier in networking that K8s supports differnt networking systems like flannel, calico, weavenet. This is happening by CNI=container network interface
+
+likewise K8s have CRI=COntainer runtime interface to supports multiple container tools like docker, rocket, cri-o
+
+sameas K8s have CSI = container storage interface which supports multiple storage plugins 
+
+CSI is not a specific K8s standard it meant to be a universal standard and implemented any orcchestration tool work with any storage interface with a supported plugin. Currently K8s, Cloundfoundary and mesos are onbarded with CSI
+
+VOLUMES & MOUNTS
+
+basic pod defination file with volume and mounts
+
+apiVersion: v1
+kind: POd
+metadata: <name of the pod>
+spec:
+  containers:
+  - name: <namd of the cont>
+    image: <name of the image>
+    command: ["/bin/sh", "-c"]
+    args: ["shuf -i 0-100 -n 1 > /opt/num.out;"]
+  volumeMounts:
+  - mountPath: /opt
+    name: data-vol
+  volumes:
+  - name: data-vol
+    hostPath: 
+      path: /data
+      type: Directory
+
+We have configured the volume at node level to store the data created by the pod. This is happen when we a single node cluster
+
+
+If we have multi node cluster, we can store data by creating volume in AWS EBS
+
+volumes:
+- name: data-vol
+  awsElasticBlockStore:
+    volumeID: <volume id>
+    fsType: ext4	
+
+PERSISTENT VOLUMES
+
+A persistent volume is a piece of storage in a cluster that an administrator has provisioned. It is a resource in the cluster, just as a node is a cluster resource. A persistent volume is a volume plug-in that has a lifecycle independent of any individual pod that uses the persistent volume. or
+
+A persistent volume is a piece of storage in a cluster that an administrator has provisioned. It is a resource in the cluster, just as a node is a cluster resource. A persistent volume is a volume plug-in that has a lifecycle independent of any individual pod that uses the persistent volume.
+
+basic pv defintion file
+
+apiVersion: v1
+kind: PersistantVolume
+metadata:
+  name: <name of the pv>
+spec:
+  accessModes: 
+  - ReadWriteOnce  NOTE: We do have 3 type of access modes i.e ReadOnlyMany (ROX), ReadWriteOnce (RWO), ReadWriteMany (RWX)
+  capacity: 
+    storage: 1Gi
+  hostPath:
+    path: /tmp/data
+
+
+we can replace the host path with one of the supported storage solutions. Here i am using aws ebs
+
+awsElasticBlockStore:
+  volumeId: <id of the ebs>
+  fsType: ext4
+
+
+kubectl create -f <name of the defination file> = to create a persistant volume
+
+kubectl get persistantvolume = To list the volumes
+
+
+PERSISTENT VOLUME CLAIM
+
+A PersistentVolumeClaim (PVC) is a request for storage by a user. It is similar to a Pod. Pods consume node resources and PVCs consume PV resources. Pods can request specific levels of resources (CPU and Memory). Claims can request specific size and access modes (e.g., they can be mounted ReadWriteOnce, ReadOnlyMany or ReadWriteMany, see AccessModes).
+
+defination file of pvc
+
+apiVesion: v1
+kind: PersistantVolumeClaim
+metadata: 
+  name: my-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 500Mi
+
+kubectl create -f <name of the pvc> = To create a PVC from defination file
+kubectl get persistantvolumeclaim = To list the pvc
+kubectl delete persistantvolumeclaim <name of the pvc> = To delete pvc
+
+What happend to the underlying pv when we deleted pvc. there are 3 policies we can choose
+
+persistantVolumeReclaimPolicy: Retain It means when the pvc is deleted the pv will remain retain untill we delete it manually by the adminstrator. We can reuse this for any other pvc and this is the default policy
+
+persistantVolumeReclaimPolicy: Delete It means when the pvc is deleted the pv will be deleted automatically
+
+persistantVolumeReclaimPolicy: Recycle It is deprecated
+
+
+
+Using PVCs in Pods
+Once you create a PVC use it in a POD definition file by specifying the PVC Claim name under persistentVolumeClaim section in the volumes section like this:
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: mypod
+spec:
+  containers:
+    - name: myfrontend
+      image: nginx
+      volumeMounts:
+      - mountPath: "/var/www/html"
+        name: mypd
+  volumes:
+    - name: mypd
+      persistentVolumeClaim:
+        claimName: myclaim
+
+
+The same is true for ReplicaSets or Deployments. Add this to the pod template section of a Deployment on ReplicaSet.
+
+Reference URL: https://kubernetes.io/docs/concepts/storage/persistent-volumes/#claims-as-volumes
+
+
+kubectl exec webapp -- cat /log/app.log = TO check the logs in the pod
+
+
+What are stateful sets?
+
+
+STORAGE CLASSES
+
+Till now we have seen that we are manually creating the pv. whenever the application is requested pvc claim, we are creating pv manually. This is called static provisioning
+
+Now we will create a pv from the cloud providers in this case GCP, whenever the claim is requested, GCP will automatically create a PV, that pv will be bound to the PVC. This can be used 
+by the pod. This is called Dynamic Provision. To do this we have to create disk in google cloud manually. then create a pv with the same name as you have mentioned in the gcp.
+
+To do the dynamic provisioning, we have to create a storage class
+
+storage class defination file
+
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: gcp-sc
+provisioner: kubernetes.io/gce-pd
+parameters:
+  type: pd-standard/pd-ssd
+  replication-type: none/regional-pd
+
+
+kubectl get sc = To list the staorage classes
+
+
+This storage class should be mentioned in the pvc claim object file
+
+apiVersion: v1
+kind: persistentVolumeClaim
+metadata:
+  name: my-pvc
+spec:
+  accessModes:
+  - ReadWriteMany
+  storageClassName: gcp-sc
+  resources:
+    requests:
+      storage: 500Mi
+
+This pvc should be mentioned in pod defination file
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: mypod
+spec:
+  containers:
+    - name: myfrontend
+      image: nginx
+      volumeMounts:
+      - mountPath: "/var/www/html"
+        name: mypd
+  volumes:
+    - name: mypd
+      persistentVolumeClaim:
+        claimName: my-pvc
+
+When you created pvc gcp will automatically created the pv with the required size as you are mentioning storageclass in pvc yaml file. but we are not creating pv manually.
+
+There are many other provisioners like aws, azure, cinder, azure file. Based on the type of provision we need to mention the parameters in the storage class defination file.
+
+
+
+NETWORKING
+
+iplink = To list and modify the interfaces on the host
+
+ip addr = To see the ipaddress assigned to those interfaces
+
+ip addr add <ip address> dev eht0 = To set ip address to the interface
+
+NOTE: Changes made via this command valid till the restart, if you want to persist them you have to set them in /etc/networkinterfaces file
+
+route / ip route = To see the routing table
+
+ip route add <dest. ip addr> via <route table ip add> = to add entries into the route
+
+To check ip forwarding is enbaled in host machine, if you are working on host to route 
+
+cat /proc/sys/net/ipv4/ip_forward=1 By default this value is 0, to enable ip forwading set it to 1
+
+cat /etc/sysctl.conf
+
+
