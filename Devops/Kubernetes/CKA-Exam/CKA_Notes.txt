@@ -2281,3 +2281,138 @@ cat /proc/sys/net/ipv4/ip_forward=1 By default this value is 0, to enable ip for
 cat /etc/sysctl.conf
 
 
+Prerequisite - CoreDNS
+In the previous lecture we saw why you need a DNS server and how it can help manage name resolution in large environments with many hostnames and Ips and how you can configure your hosts to point to a DNS server. In this article we will see how to configure a host as a DNS server.
+
+We are given a server dedicated as the DNS server, and a set of Ips to configure as entries in the server. There are many DNS server solutions out there, in this lecture we will focus on a particular one – CoreDNS.
+
+So how do you get core dns? CoreDNS binaries can be downloaded from their Github releases page or as a docker image. Let’s go the traditional route. Download the binary using curl or wget. And extract it. You get the coredns executable.
+
+Run the executable to start a DNS server. It by default listens on port 53, which is the default port for a DNS server.
+
+Now we haven’t specified the IP to hostname mappings. For that you need to provide some configurations. There are multiple ways to do that. We will look at one. First we put all of the entries into the DNS servers /etc/hosts file.
+
+And then we configure CoreDNS to use that file. CoreDNS loads it’s configuration from a file named Corefile. Here is a simple configuration that instructs CoreDNS to fetch the IP to hostname mappings from the file /etc/hosts. When the DNS server is run, it now picks the Ips and names from the /etc/hosts file on the server.
+
+CoreDNS also supports other ways of configuring DNS entries through plugins. We will look at the plugin that it uses for Kubernetes in a later section.
+
+Read more about CoreDNS here:
+
+https://github.com/kubernetes/dns/blob/master/docs/specification.md
+
+https://coredns.io/plugins/kubernetes/
+
+
+ps aux = To list the process on the container
+
+ps aux = To list the process on the container and host. To do this we should become host
+
+ip netns add <namespace name (eg:red)> = To create a namespace on the linux host
+ip netns add <namespace name (eg:blue)> = To create a namespace on the linux host
+
+ip netns = To list the namespaces
+
+ip link = To list the interfaces on the host
+
+ip netns exec <namespace name> ip link or ip -n <namespace name> link = To list the newwork interfaces in the particular namespace
+
+arp = To list the arp in the host
+
+ip netns exec <namespace name> arp = To list the arp's in the namespace
+
+route = To list the routing table in the host
+
+ip netns exec <namespace name> route = To list the route tabels in the namespace
+
+
+To establish a connection b/w two namespaces. This can be done by connecting two systems with the cable, it can be done in namespaces with the virtual cable or pipe
+
+ip link add veth-red type veth peer name veth-blue = to create virtual interface and to connect with virtual cable
+
+ip link set veth-red netns red = to attach the created virtual interface to the namespace
+
+ip link set veth-blue netns blue = to attach the created virtual interface to the namespace
+
+ip -n red addr add <ip address> dev veth-red = To assign an ip address to the namespace likewise assign ip to blue ns
+
+ip -n red link set veth-red up = To up the created address likewise create for blue ns
+
+ip netns exec red ping <blue ns ip address> = To check they are communicating with each other
+
+ip netns exec red arp = Now we can see the blue ip address in the red ns
+
+ip netns exec blue arp = Now we can see the red ip address in the blue ns
+
+if we can check now the arp in the host by using arp command the host doesnt aware of the above two ip
+
+till now we have seen for two namespaces in the host, if there are multiple namespaces, we will create a virtual switch within our hsot and connect all the ns to the switch. we do have
+multiple native options to create virtual switch those are linux bridge and openv switch
+
+in this we will see linux bridge option to create virtual switch
+
+ip link add v-net-0 type bridge = to create a new brige network we have to add a new interface to the host with type as bridge (v-net-0 is the name of the bridge)
+
+ip link set dev v-net-0 up = To up the network
+
+the earlier created vertual cables are not required anymore
+
+ip -n red link del veth-red = To delete the virtual cable. if we delete the onc cable the other end will be deleted automatically as they are interlinked
+
+now we have to create new cables to connect ns to the switch.
+
+ip link add veth-red type veth peer name veth-red-br = to create a new cable with the naming convention refers to bridge network
+
+like wise create for all the namespaces
+
+now we have to link the cable to the ns and the switch
+
+ip link set veth-red netns red  = to attach one end of the cable to red ns
+
+ip link set veth-red-br master v-net-0 = to attach other end of the cable to the switch
+
+linkwise connect the blue ns to the switch
+
+now we need to add the ip addresses to the ns and turn it up
+
+ip -n red addr add 192.168.3.1 dev veth-red = To create an ip and attached to red ns
+
+likewise create it for blue ns 
+
+ip -n red link set veth-red up = to up the red ns ip address. 
+
+ip -n blue link set veth-blue up = to up the blue ns ip address
+
+now the two ns can communicate with each other over the switch
+
+NOTE: the same procedure will be applicable to all the ns in the host to communicate with each other over the virtual switch
+
+now if the want to connect the ns from the host by simply ping <ip add of the ns> it wont connect as they are in two seperate networks
+
+To establish a connection b/w host and the ns, create an ip and attach it to the switch as it is created on the host, 
+
+ip addr add <ip address> dev v-net-0 = to create a new ip to the switch. Now if we ping from the host to the red ns it will conenct
+
+whatever we have created till now it is under private network. the ns cannot access internet nor the public cant access the ns
+
+the only door to provide access to the ns is called internet port on the host
+
+ip netns exec blue ipp route add <outside lan network ip address> via <ip add of ns> = To connect to the internet via the host ip address. 
+
+Now if we ping the external internet ip address, still we cant get response, as the external internet doesnt have our ns public ip. to do that create a nat gateway and attach to the switch
+
+iptables -t nat -A POSTROUTING -s <switch ip address> -j MASQUERADE = To create a NAT gateway in the switch to get the response from the external internet
+
+now if we ping we can get the response from that particular ip only. To do that for every ip 
+
+ip netns exec blue ip route add default via <ip add of bridge network> = To connect to any ip from the blue ns throught the default gateway of the host since the host can access anything on the internet, now the blue ns can access everything which default geteway access in the host
+
+now we can ping to any ip address from the blue ns but external ip cant access the blue ns. To do that, create ip tables and forward the coming traffic from the external internal to the blue ns through the host interface ip address
+
+iptables -t nat -A PREROUTING --dport 80 --to-destination <ip add of blue ns:80> -j DNAT 
+
+
+While testing the Network Namespaces, if you come across issues where you can't ping one namespace from the other, make sure you set the NETMASK while setting IP Address. ie: 192.168.1.10/24
+
+ip -n red addr add 192.168.1.10/24 dev veth-red
+
+Another thing to check is FirewallD/IP Table rules. Either add rules to IP Tables to allow traffic from one namespace to another. Or disable IP Tables all together (Only in a learning environment).
