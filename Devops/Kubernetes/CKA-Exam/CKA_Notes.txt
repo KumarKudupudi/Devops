@@ -2314,15 +2314,28 @@ ip netns = To list the namespaces
 
 ip link = To list the interfaces on the host
 
+ip a = To list the interfaces with more details
+
+ip a | grep <internal ip address> = To know the interface of the eth in a particular node by using node ip address
+
+ip link show <interface name eg:eth0> = To know the mac address
+
+ip a = To know the mac address of a particular node, ssh into the node then type this command
+
 ip netns exec <namespace name> ip link or ip -n <namespace name> link = To list the newwork interfaces in the particular namespace
 
 arp = To list the arp in the host
 
 ip netns exec <namespace name> arp = To list the arp's in the namespace
 
-route = To list the routing table in the host
+ip route = To list the routing table in the host
 
 ip netns exec <namespace name> route = To list the route tabels in the namespace
+
+ip address show type bridge = To list only the bridge networks
+
+netstat -npl | grep -i scheduler = To know on which port scheduler is listening
+
 
 
 To establish a connection b/w two namespaces. This can be done by connecting two systems with the cable, it can be done in namespaces with the virtual cable or pipe
@@ -2416,3 +2429,80 @@ While testing the Network Namespaces, if you come across issues where you can't 
 ip -n red addr add 192.168.1.10/24 dev veth-red
 
 Another thing to check is FirewallD/IP Table rules. Either add rules to IP Tables to allow traffic from one namespace to another. Or disable IP Tables all together (Only in a learning environment).
+
+docker network ls = To list the networks in docker
+
+
+Steps to create networking namespaces in local host linux
+
+1. Network namespace
+2. Create bridge network/interface
+3. create VETH pairs (pipe, virtual cable)
+4. Attach Veth to namespace
+5. Attach other veth to bridge
+6. Assign IP addresses
+7. Bring the interfaces up
+8. Enable NAT-IP masquerade
+
+
+IP ports on master and worker nodes
+
+kubeapi server (Master) = 6443
+kubelet (Master & Worker node) = 10250
+Kube-scheduler = 10259
+Kube-controller = 10257
+etcd -server = 2379
+etcd -server = 2380 (when two master nodes are there, to communicate etcd's with each other, we should open port 2380 in two master nodes)
+Kubelet exposed services = 30000-32767
+
+
+Important Note about CNI and CKA Exam
+An important tip about deploying Network Addons in a Kubernetes cluster.
+
+In the upcoming labs, we will work with Network Addons. This includes installing a network plugin in the cluster. While we have used weave-net as an example, please bear in mind that you can use any of the plugins which are described here:
+
+https://kubernetes.io/docs/concepts/cluster-administration/addons/
+
+https://kubernetes.io/docs/concepts/cluster-administration/networking/#how-to-implement-the-kubernetes-networking-model
+
+
+ some third party tools to configure networking between pods
+
+calico
+weaveworks
+flannel
+cilium
+vmware nsx
+
+
+kubelet CNI
+
+--cni-conf-dir = /etc/cni/net.d  --> where the bridge configuration file is, which plug-in to be used
+--cni-bin-dir = /etc/cni/bin  --> where the supported CNI plugins were there as executables
+./net-script.sh add <container> <namespace> 
+
+look at the kubelet.service file for the CNI 
+
+
+Note CNI Weave
+Important Update: -
+
+Before going to the CNI weave lecture, we have an update for the Weave Net installation link. They have announced the end of service for Weave Cloud.
+
+To know more about this, read the blog from the link below: -
+
+https://www.weave.works/blog/weave-cloud-end-of-service
+
+As an impact, the old weave net installation link won’t work anymore: -
+
+kubectl apply -f "https://cloud.weave.works/k8s/net?k8s-version=$(kubectl version | base64 | tr -d '\n')"
+
+Instead of that, use the below latest link to install the weave net: -
+
+kubectl apply -f https://github.com/weaveworks/weave/releases/download/v2.8.1/weave-daemonset-k8s.yaml
+
+Reference links: -
+
+https://www.weave.works/docs/net/latest/kubernetes/kube-addon/#-installation
+
+https://github.com/weaveworks/weave/releases
