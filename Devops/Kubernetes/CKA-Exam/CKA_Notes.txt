@@ -2465,6 +2465,14 @@ https://kubernetes.io/docs/concepts/cluster-administration/addons/
 
 https://kubernetes.io/docs/concepts/cluster-administration/networking/#how-to-implement-the-kubernetes-networking-model
 
+ip addr show <network plugin name> = To check the pod range
+
+cd /etc/cni/net.d = To check which network plugin is used
+
+ip route = to check the ip routes
+
+
+
 
  some third party tools to configure networking between pods
 
@@ -2478,8 +2486,10 @@ vmware nsx
 kubelet CNI
 
 --cni-conf-dir = /etc/cni/net.d  --> where the bridge configuration file is, which plug-in to be used
---cni-bin-dir = /etc/cni/bin  --> where the supported CNI plugins were there as executables
+ 
 ./net-script.sh add <container> <namespace> 
+The CNI binaries are located under /opt/cni/bin by default.
+
 
 look at the kubelet.service file for the CNI 
 
@@ -2506,3 +2516,16 @@ Reference links: -
 https://www.weave.works/docs/net/latest/kubernetes/kube-addon/#-installation
 
 https://github.com/weaveworks/weave/releases
+
+kube-proxy --proxy-mode [userspace | iptables | ipvs]
+
+kube-api-server --service-cluster-ip-range ipNet (default 10.0.0.0/24) = We can change this cidr the assign different ip address for the service created by K8
+
+ps aux | grep kube-api-server = to know the ip address of the service and service type
+
+iptabels -L -t nat | grep <service name> = to check the create service is forwarding the incoming request to pod to avail the apps in pod
+
+cat /var/log/kube-proxy.log = To check the above in the log. The path my vary depends on the installation.
+
+https://kubernetes.io/docs/concepts/cluster-administration/addons/
+
